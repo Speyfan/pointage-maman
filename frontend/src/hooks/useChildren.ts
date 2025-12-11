@@ -1,7 +1,7 @@
 // src/hooks/useChildren.ts
 import { useMemo } from "react";
 import { useLocalStorage } from "./useLocalStorage";
-import type { Child } from "../types";
+import type { Child } from "../type";
 
 export interface NewChildInput {
   firstName: string;

@@ -1,7 +1,7 @@
 // src/hooks/useAttendance.ts
 import { useMemo } from "react";
 import { useLocalStorage } from "./useLocalStorage";
-import type { Attendance } from "../types";
+import type { Attendance } from "../type";
 
 function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
