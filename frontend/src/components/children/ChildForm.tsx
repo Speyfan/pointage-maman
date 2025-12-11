@@ -1,5 +1,5 @@
 // src/components/children/ChildForm.tsx
-import { useState, FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import type { NewChildInput } from "../../hooks/useChildren";
 
 interface ChildFormProps {

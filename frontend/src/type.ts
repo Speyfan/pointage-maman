@@ -1,21 +1,19 @@
-// src/types.ts
-export type ChildId = string;
-export type AttendanceId = string;
+// src/types.ts ou types.tsx
 
 export interface Child {
-  id: ChildId;
+  id: string;
   firstName: string;
-  lastName?: string;
-  birthDate?: string; // "YYYY-MM-DD"
-  active: boolean;    // false = archivé
-  notes?: string;
-  color?: string;     // pour distinguer visuellement (optionnel)
+  lastName?: string | null;
+  birthDate?: string | null; // "YYYY-MM-DD"
+  active: boolean;
+  notes?: string | null;
+  color?: string | null;
 }
 
 export interface Attendance {
-  id: AttendanceId;
-  childId: ChildId;
-  date: string;       // "YYYY-MM-DD"
-  checkIn: string;    // ISO string ou "HH:mm"
-  checkOut?: string | null; // null = encore présent
+  id: string;
+  childId: string;
+  date: string;         // "YYYY-MM-DD"
+  checkIn: string;      // "HH:mm"
+  checkOut: string | null; // "HH:mm" ou null si encore présent
 }
