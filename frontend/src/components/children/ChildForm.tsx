@@ -51,7 +51,7 @@ export default function ChildForm({ onSubmit }: ChildFormProps) {
           </label>
           <input
             name="firstName"
-            value={form.firstName}
+            value={form.firstName ?? "" as string}
             onChange={handleChange}
             className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
             placeholder="Ex : Emma"
@@ -63,7 +63,7 @@ export default function ChildForm({ onSubmit }: ChildFormProps) {
           <label className="text-xs font-medium text-slate-700">Nom</label>
           <input
             name="lastName"
-            value={form.lastName}
+            value={form.lastName ?? "" as string}
             onChange={handleChange}
             className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
             placeholder="(optionnel)"
@@ -77,7 +77,7 @@ export default function ChildForm({ onSubmit }: ChildFormProps) {
           <input
             type="date"
             name="birthDate"
-            value={form.birthDate}
+            value={form.birthDate ?? "" as string}
             onChange={handleChange}
             className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
           />
@@ -90,7 +90,7 @@ export default function ChildForm({ onSubmit }: ChildFormProps) {
           <input
             type="color"
             name="color"
-            value={form.color}
+            value={form.color ?? "" as string}
             onChange={handleChange}
             className="h-9 w-full rounded-lg border border-slate-300 px-2 py-1"
           />
@@ -101,7 +101,7 @@ export default function ChildForm({ onSubmit }: ChildFormProps) {
         <label className="text-xs font-medium text-slate-700">Notes</label>
         <textarea
           name="notes"
-          value={form.notes}
+          value={form.notes ?? "" as string}
           onChange={handleChange}
           className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 min-h-[60px]"
           placeholder="Infos importantes, allergies, sieste, etc."
