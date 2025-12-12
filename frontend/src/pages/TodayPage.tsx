@@ -44,23 +44,22 @@ export default function TodayPage() {
   const handleCheckIn = async (childId: string) => {
     try {
       await checkIn(childId, { date });
-      // On recharge les présences du jour pour être sûr d'avoir les données à jour
+      // 🔁 On recharge la journée pour cet enfant
       await loadRangeForChild(childId, date, date);
     } catch (err) {
-      console.error("Erreur lors du check-in :", err);
+      console.error("Erreur lors du check-in (TodayPage):", err);
     }
   };
-  
 
   const handleCheckOut = async (childId: string) => {
     try {
       await checkOut(childId, { date });
+      // 🔁 On recharge la journée pour cet enfant
       await loadRangeForChild(childId, date, date);
     } catch (err) {
-      console.error("Erreur lors du check-out :", err);
+      console.error("Erreur lors du check-out (TodayPage):", err);
     }
   };
-  
 
   const handleEditChange = (
     attendance: Attendance,
@@ -88,10 +87,16 @@ export default function TodayPage() {
       checkOut: attendance.checkOut ?? "",
     };
 
-    await updateAttendance(attendance.id, {
-      checkIn: edit.checkIn,
-      checkOut: edit.checkOut ? edit.checkOut : null,
-    });
+    try {
+      await updateAttendance(attendance.id, {
+        checkIn: edit.checkIn,
+        checkOut: edit.checkOut ? edit.checkOut : null,
+      });
+      // Optionnel : recharger cette journée
+      await loadRangeForChild(attendance.childId, attendance.date, attendance.date);
+    } catch (err) {
+      console.error("Erreur lors de la sauvegarde des heures (TodayPage):", err);
+    }
   };
 
   return (

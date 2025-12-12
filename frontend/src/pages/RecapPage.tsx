@@ -90,7 +90,11 @@ export default function RecapPage() {
 
   const handleLoad = async () => {
     if (!selectedChildId) return;
-    await loadRangeForChild(selectedChildId, startDate, endDate);
+    try {
+      await loadRangeForChild(selectedChildId, startDate, endDate);
+    } catch (err) {
+      console.error("Erreur lors du chargement du récap :", err);
+    }
   };
 
   const handleEditChange = (
@@ -119,10 +123,14 @@ export default function RecapPage() {
       checkOut: att.checkOut ?? "",
     };
 
-    await updateAttendance(att.id, {
-      checkIn: edit.checkIn,
-      checkOut: edit.checkOut ? edit.checkOut : null,
-    });
+    try {
+      await updateAttendance(att.id, {
+        checkIn: edit.checkIn,
+        checkOut: edit.checkOut ? edit.checkOut : null,
+      });
+    } catch (err) {
+      console.error("Erreur lors de la sauvegarde des heures (RecapPage):", err);
+    }
   };
 
   return (

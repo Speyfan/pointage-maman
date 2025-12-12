@@ -6,8 +6,8 @@ import type { Attendance } from "../types";
 interface AttendanceRow {
   id: string;
   child_id: string;
-  date: string; // "YYYY-MM-DD"
-  check_in: string; // "HH:MM:SS" ou "HH:MM"
+  date: string;           // "YYYY-MM-DD"
+  check_in: string;       // "HH:MM:SS" ou "HH:MM"
   check_out: string | null; // idem ou null
   created_at: string;
 }
@@ -31,39 +31,46 @@ function mapAttendanceRow(row: AttendanceRow): Attendance {
 export function useAttendance() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
   // cache local des présences, clé = childId
   const [recordsByChild, setRecordsByChild] = useState<
     Record<string, Attendance[]>
   >({});
 
-  // compteur de requêtes de chargement de plages (loadRangeForChild)
+  // compteur de requêtes en cours pour gérer loading global
   const pendingRef = useRef(0);
 
-  const getCachedForChild = useCallback(
-    (childId: string): Attendance[] => {
-      return recordsByChild[childId] ?? [];
-    },
-    [recordsByChild]
-  );
+  function beginLoading() {
+    pendingRef.current += 1;
+    setLoading(true);
+  }
 
-  const setChildRecords = useCallback(
-    (childId: string, records: Attendance[]) => {
-      setRecordsByChild((prev) => ({
-        ...prev,
-        [childId]: records,
-      }));
-    },
-    []
-  );
+  function endLoading() {
+    pendingRef.current -= 1;
+    if (pendingRef.current <= 0) {
+      pendingRef.current = 0;
+      setLoading(false);
+    }
+  }
+
+  function getCachedForChild(childId: string): Attendance[] {
+    return recordsByChild[childId] ?? [];
+  }
+
+  function setChildRecords(childId: string, records: Attendance[]) {
+    setRecordsByChild((prev) => ({
+      ...prev,
+      [childId]: records,
+    }));
+  }
 
   const loadRangeForChild = useCallback(
     async (
       childId: string,
       start: string, // "YYYY-MM-DD"
-      end: string // "YYYY-MM-DD"
+      end: string    // "YYYY-MM-DD"
     ): Promise<Attendance[]> => {
-      pendingRef.current += 1;
-      setLoading(true);
+      beginLoading();
       setError(null);
 
       try {
@@ -73,6 +80,8 @@ export function useAttendance() {
           )}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
         );
         const mapped = rows.map(mapAttendanceRow);
+
+        // on remplace le cache pour cet enfant par ce qui vient de l'API
         setChildRecords(childId, mapped);
         return mapped;
       } catch (err: any) {
@@ -80,13 +89,10 @@ export function useAttendance() {
         setError(err.message || "Erreur de chargement des présences");
         throw err;
       } finally {
-        pendingRef.current -= 1;
-        if (pendingRef.current === 0) {
-          setLoading(false);
-        }
+        endLoading();
       }
     },
-    [setChildRecords]
+    []
   );
 
   // 🔹 Récupérer les présences d'un jour précis depuis le cache
@@ -103,11 +109,14 @@ export function useAttendance() {
     if (options?.date) body.date = options.date;
     if (options?.time) body.time = options.time;
 
+    beginLoading();
+    setError(null);
+
     try {
-      setLoading(true);
-      setError(null);
       const row = await api.post<AttendanceRow>("/attendance/check-in", body);
       const att = mapAttendanceRow(row);
+
+      console.log("checkIn réponse API :", att);
 
       // on met à jour le cache pour cet enfant (remplace l'entrée du même id si jamais)
       const existing = getCachedForChild(childId).filter(
@@ -121,7 +130,7 @@ export function useAttendance() {
       setError(err.message || "Erreur lors du pointage d'arrivée");
       throw err;
     } finally {
-      setLoading(false);
+      endLoading();
     }
   }
 
@@ -134,11 +143,14 @@ export function useAttendance() {
     if (options?.date) body.date = options.date;
     if (options?.time) body.time = options.time;
 
+    beginLoading();
+    setError(null);
+
     try {
-      setLoading(true);
-      setError(null);
       const row = await api.post<AttendanceRow>("/attendance/check-out", body);
       const att = mapAttendanceRow(row);
+
+      console.log("checkOut réponse API :", att);
 
       const existing = getCachedForChild(childId).filter(
         (r) => r.id !== att.id
@@ -151,7 +163,7 @@ export function useAttendance() {
       setError(err.message || "Erreur lors du pointage de départ");
       throw err;
     } finally {
-      setLoading(false);
+      endLoading();
     }
   }
 
@@ -169,9 +181,10 @@ export function useAttendance() {
     if (data.checkIn !== undefined) body.checkIn = data.checkIn;
     if (data.checkOut !== undefined) body.checkOut = data.checkOut;
 
+    beginLoading();
+    setError(null);
+
     try {
-      setLoading(true);
-      setError(null);
       const row = await api.patch<AttendanceRow>(`/attendance/${id}`, body);
       const att = mapAttendanceRow(row);
 
@@ -187,7 +200,7 @@ export function useAttendance() {
       setError(err.message || "Erreur lors de la mise à jour des heures");
       throw err;
     } finally {
-      setLoading(false);
+      endLoading();
     }
   }
 
