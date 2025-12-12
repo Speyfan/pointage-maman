@@ -82,8 +82,7 @@ export default function RecapPage() {
   const totalMinutes = useMemo(
     () =>
       records.reduce(
-        (sum, r) =>
-          sum + diffMinutes(r.checkIn, r.checkOut ?? ""),
+        (sum, r) => sum + diffMinutes(r.checkIn, r.checkOut ?? ""),
         0
       ),
     [records]

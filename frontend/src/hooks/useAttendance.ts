@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { api } from "../api";
 import type { Attendance } from "../types";
 
@@ -6,8 +6,8 @@ import type { Attendance } from "../types";
 interface AttendanceRow {
   id: string;
   child_id: string;
-  date: string;        // "YYYY-MM-DD"
-  check_in: string;    // "HH:MM:SS" ou "HH:MM"
+  date: string; // "YYYY-MM-DD"
+  check_in: string; // "HH:MM:SS" ou "HH:MM"
   check_out: string | null; // idem ou null
   created_at: string;
 }
@@ -36,23 +36,37 @@ export function useAttendance() {
     Record<string, Attendance[]>
   >({});
 
-  function getCachedForChild(childId: string): Attendance[] {
-    return recordsByChild[childId] ?? [];
-  }
+  // compteur de requêtes de chargement de plages (loadRangeForChild)
+  const pendingRef = useRef(0);
 
-  function setChildRecords(childId: string, records: Attendance[]) {
-    setRecordsByChild((prev) => ({
-      ...prev,
-      [childId]: records,
-    }));
-  }
+  const getCachedForChild = useCallback(
+    (childId: string): Attendance[] => {
+      return recordsByChild[childId] ?? [];
+    },
+    [recordsByChild]
+  );
 
-  // 🔹 Charger les présences d'un enfant sur une période (pour les récap)
+  const setChildRecords = useCallback(
+    (childId: string, records: Attendance[]) => {
+      setRecordsByChild((prev) => ({
+        ...prev,
+        [childId]: records,
+      }));
+    },
+    []
+  );
+
   const loadRangeForChild = useCallback(
-    async (childId: string, start: string, end: string): Promise<Attendance[]> => {
+    async (
+      childId: string,
+      start: string, // "YYYY-MM-DD"
+      end: string // "YYYY-MM-DD"
+    ): Promise<Attendance[]> => {
+      pendingRef.current += 1;
+      setLoading(true);
+      setError(null);
+
       try {
-        setLoading(true);
-        setError(null);
         const rows = await api.get<AttendanceRow[]>(
           `/attendance?childId=${encodeURIComponent(
             childId
@@ -66,10 +80,13 @@ export function useAttendance() {
         setError(err.message || "Erreur de chargement des présences");
         throw err;
       } finally {
-        setLoading(false);
+        pendingRef.current -= 1;
+        if (pendingRef.current === 0) {
+          setLoading(false);
+        }
       }
     },
-    [api, setChildRecords] // et tout ce qu'elle utilise depuis le scope
+    [setChildRecords]
   );
 
   // 🔹 Récupérer les présences d'un jour précis depuis le cache
