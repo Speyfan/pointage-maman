@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { api } from "../api";
 import type { Attendance } from "../types";
 
@@ -48,30 +48,29 @@ export function useAttendance() {
   }
 
   // 🔹 Charger les présences d'un enfant sur une période (pour les récap)
-  async function loadRangeForChild(
-    childId: string,
-    start: string, // "YYYY-MM-DD"
-    end: string    // "YYYY-MM-DD"
-  ): Promise<Attendance[]> {
-    try {
-      setLoading(true);
-      setError(null);
-      const rows = await api.get<AttendanceRow[]>(
-        `/attendance?childId=${encodeURIComponent(
-          childId
-        )}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
-      );
-      const mapped = rows.map(mapAttendanceRow);
-      setChildRecords(childId, mapped);
-      return mapped;
-    } catch (err: any) {
-      console.error("Erreur loadRangeForChild:", err);
-      setError(err.message || "Erreur de chargement des présences");
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }
+  const loadRangeForChild = useCallback(
+    async (childId: string, start: string, end: string): Promise<Attendance[]> => {
+      try {
+        setLoading(true);
+        setError(null);
+        const rows = await api.get<AttendanceRow[]>(
+          `/attendance?childId=${encodeURIComponent(
+            childId
+          )}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
+        );
+        const mapped = rows.map(mapAttendanceRow);
+        setChildRecords(childId, mapped);
+        return mapped;
+      } catch (err: any) {
+        console.error("Erreur loadRangeForChild:", err);
+        setError(err.message || "Erreur de chargement des présences");
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [api, setChildRecords] // et tout ce qu'elle utilise depuis le scope
+  );
 
   // 🔹 Récupérer les présences d'un jour précis depuis le cache
   function getDayForChild(childId: string, date: string): Attendance[] {
