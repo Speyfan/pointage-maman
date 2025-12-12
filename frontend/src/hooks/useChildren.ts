@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import type { Child } from "../types";
 
-// type brut renvoyé par l'API (colonne Postgres)
+// type brut renvoyé par l'API (colonnes Postgres)
 interface ChildRow {
   id: string;
   first_name: string;
@@ -11,6 +11,15 @@ interface ChildRow {
   active: boolean;
   notes: string | null;
   color: string | null;
+}
+
+// shape utilisé côté formulaire
+export interface NewChildInput {
+  firstName: string;
+  lastName?: string | null;
+  birthDate?: string | null;
+  notes?: string | null;
+  color?: string | null;
 }
 
 function mapChildFromRow(row: ChildRow): Child {
@@ -25,13 +34,7 @@ function mapChildFromRow(row: ChildRow): Child {
   };
 }
 
-function buildChildPayload(input: {
-  firstName: string;
-  lastName?: string | null;
-  birthDate?: string | null;
-  notes?: string | null;
-  color?: string | null;
-}) {
+function buildChildPayload(input: NewChildInput) {
   return {
     firstName: input.firstName,
     lastName: input.lastName ?? null,
@@ -74,13 +77,7 @@ export function useChildren() {
     [children]
   );
 
-  async function addChild(data: {
-    firstName: string;
-    lastName?: string | null;
-    birthDate?: string | null;
-    notes?: string | null;
-    color?: string | null;
-  }) {
+  async function addChild(data: NewChildInput) {
     const payload = buildChildPayload(data);
     const row = await api.post<ChildRow>("/children", payload);
     const child = mapChildFromRow(row);
@@ -90,14 +87,11 @@ export function useChildren() {
 
   async function updateChild(
     id: string,
-    data: Partial<{
-      firstName: string;
-      lastName: string | null;
-      birthDate: string | null;
-      notes: string | null;
-      color: string | null;
-      active: boolean;
-    }>
+    data: Partial<
+      NewChildInput & {
+        active: boolean;
+      }
+    >
   ) {
     const payload: any = {};
     if (data.firstName !== undefined) payload.firstName = data.firstName;
@@ -109,9 +103,7 @@ export function useChildren() {
 
     const row = await api.patch<ChildRow>(`/children/${id}`, payload);
     const updated = mapChildFromRow(row);
-    setChildren((prev) =>
-      prev.map((c) => (c.id === id ? updated : c))
-    );
+    setChildren((prev) => prev.map((c) => (c.id === id ? updated : c)));
     return updated;
   }
 
@@ -121,6 +113,17 @@ export function useChildren() {
 
   async function unarchiveChild(id: string) {
     return updateChild(id, { active: true });
+  }
+
+  async function toggleArchive(id: string) {
+    const child = children.find((c) => c.id === id);
+    if (!child) return;
+    return updateChild(id, { active: !child.active });
+  }
+
+  async function deleteChild(id: string) {
+    await api.delete<void>(`/children/${id}`);
+    setChildren((prev) => prev.filter((c) => c.id !== id));
   }
 
   return {
@@ -134,5 +137,7 @@ export function useChildren() {
     updateChild,
     archiveChild,
     unarchiveChild,
+    toggleArchive,
+    deleteChild,
   };
 }

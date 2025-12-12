@@ -1,6 +1,6 @@
 // src/components/children/ChildList.tsx
 import { useState } from "react";
-import type { Child } from "../../type";
+import type { Child } from "../../types";
 
 interface ChildListProps {
   activeChildren: Child[];

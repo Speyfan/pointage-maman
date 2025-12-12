@@ -1,5 +1,3 @@
-// src/types.ts ou types.tsx
-
 export interface Child {
   id: string;
   firstName: string;
@@ -13,7 +11,7 @@ export interface Child {
 export interface Attendance {
   id: string;
   childId: string;
-  date: string;         // "YYYY-MM-DD"
-  checkIn: string;      // "HH:mm"
-  checkOut: string | null; // "HH:mm" ou null si encore présent
+  date: string;            // "YYYY-MM-DD"
+  checkIn: string;         // "HH:mm"
+  checkOut: string | null; // "HH:mm" ou null
 }

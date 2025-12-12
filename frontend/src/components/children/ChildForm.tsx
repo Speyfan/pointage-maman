@@ -19,14 +19,14 @@ export default function ChildForm({ onSubmit }: ChildFormProps) {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    setForm((prev: NewChildInput) => ({ ...prev, [name]: value }));
   }
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!form.firstName.trim()) return;
     onSubmit(form);
-    setForm((prev) => ({
+    setForm((prev: NewChildInput) => ({
       ...prev,
       firstName: "",
       lastName: "",
