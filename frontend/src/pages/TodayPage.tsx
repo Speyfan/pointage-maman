@@ -42,12 +42,25 @@ export default function TodayPage() {
   );
 
   const handleCheckIn = async (childId: string) => {
-    await checkIn(childId, { date });
+    try {
+      await checkIn(childId, { date });
+      // On recharge les présences du jour pour être sûr d'avoir les données à jour
+      await loadRangeForChild(childId, date, date);
+    } catch (err) {
+      console.error("Erreur lors du check-in :", err);
+    }
   };
+  
 
   const handleCheckOut = async (childId: string) => {
-    await checkOut(childId, { date });
+    try {
+      await checkOut(childId, { date });
+      await loadRangeForChild(childId, date, date);
+    } catch (err) {
+      console.error("Erreur lors du check-out :", err);
+    }
   };
+  
 
   const handleEditChange = (
     attendance: Attendance,
