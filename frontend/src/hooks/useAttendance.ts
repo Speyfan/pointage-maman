@@ -19,14 +19,19 @@ function mapAttendanceRow(row: AttendanceRow): Attendance {
     return t.slice(0, 5);
   };
 
+  // On normalise la date en "YYYY-MM-DD"
+  const normalizedDate =
+    row.date.length > 10 ? row.date.slice(0, 10) : row.date;
+
   return {
     id: row.id,
     childId: row.child_id,
-    date: row.date,
+    date: normalizedDate,           // 👈 important
     checkIn: formatTime(row.check_in) || "",
     checkOut: formatTime(row.check_out),
   };
 }
+
 
 export function useAttendance() {
   const [loading, setLoading] = useState(false);
