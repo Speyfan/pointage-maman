@@ -225,6 +225,48 @@ app.delete("/api/children/:id", async (req, res) => {
   }
 });
 
+app.patch("/api/attendance/:id", async (req, res) => {
+  const { id } = req.params;
+  const { date, checkIn, checkOut } = req.body;
+
+  const fields = [];
+  const values = [];
+  let idx = 1;
+
+  if (date !== undefined) {
+    fields.push(`date = $${idx++}`);
+    values.push(date);
+  }
+  if (checkIn !== undefined) {
+    fields.push(`check_in = $${idx++}`);
+    values.push(checkIn);
+  }
+  if (checkOut !== undefined) {
+    fields.push(`check_out = $${idx++}`);
+    values.push(checkOut);
+  }
+
+  if (fields.length === 0) {
+    return res.status(400).json({ error: "Rien à mettre à jour" });
+  }
+
+  values.push(id);
+
+  try {
+    const result = await pool.query(
+      `UPDATE attendance SET ${fields.join(", ")} WHERE id = $${idx} RETURNING *`,
+      values
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Présence introuvable" });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("PATCH /api/attendance/:id error:", err);
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
 
 app.listen(port, () => {
   console.log(`API pointage en écoute sur le port ${port}`);

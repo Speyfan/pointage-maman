@@ -1,107 +1,189 @@
-// src/hooks/useAttendance.ts
-import { useMemo } from "react";
-import { useLocalStorage } from "./useLocalStorage";
+import { useState } from "react";
+import { api } from "../api";
 import type { Attendance } from "../types";
 
-function generateId() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+// Format brut renvoyé par l'API (Postgres)
+interface AttendanceRow {
+  id: string;
+  child_id: string;
+  date: string;        // "YYYY-MM-DD"
+  check_in: string;    // "HH:MM:SS" ou "HH:MM"
+  check_out: string | null; // idem ou null
+  created_at: string;
 }
 
-function getCurrentTimeHHMM() {
-  const now = new Date();
-  const h = String(now.getHours()).padStart(2, "0");
-  const m = String(now.getMinutes()).padStart(2, "0");
-  return `${h}:${m}`;
+function mapAttendanceRow(row: AttendanceRow): Attendance {
+  const formatTime = (t: string | null): string | null => {
+    if (!t) return null;
+    // on garde HH:MM
+    return t.slice(0, 5);
+  };
+
+  return {
+    id: row.id,
+    childId: row.child_id,
+    date: row.date,
+    checkIn: formatTime(row.check_in) || "",
+    checkOut: formatTime(row.check_out),
+  };
 }
 
 export function useAttendance() {
-  const [attendances, setAttendances] = useLocalStorage<Attendance[]>(
-    "attendances",
-    []
-  );
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // cache local des présences, clé = childId
+  const [recordsByChild, setRecordsByChild] = useState<
+    Record<string, Attendance[]>
+  >({});
 
-  const sortedAttendances = useMemo(
-    () =>
-      [...attendances].sort((a, b) => {
-        if (a.date !== b.date) return a.date.localeCompare(b.date);
-        return a.checkIn.localeCompare(b.checkIn);
-      }),
-    [attendances]
-  );
-
-  function getAttendancesByDate(date: string) {
-    return sortedAttendances.filter((a) => a.date === date);
+  function getCachedForChild(childId: string): Attendance[] {
+    return recordsByChild[childId] ?? [];
   }
 
-  function getChildAttendancesForDate(childId: string, date: string) {
-    return sortedAttendances.filter(
-      (a) => a.childId === childId && a.date === date
-    );
+  function setChildRecords(childId: string, records: Attendance[]) {
+    setRecordsByChild((prev) => ({
+      ...prev,
+      [childId]: records,
+    }));
   }
 
-  function getOpenAttendance(childId: string, date: string) {
-    return sortedAttendances.find(
-      (a) => a.childId === childId && a.date === date && !a.checkOut
-    );
-  }
-
-  function getChildStatusForDate(
+  // 🔹 Charger les présences d'un enfant sur une période (pour les récap)
+  async function loadRangeForChild(
     childId: string,
-    date: string
-  ): "not-arrived" | "here" | "left" {
-    const list = getChildAttendancesForDate(childId, date);
-    if (list.length === 0) return "not-arrived";
-    const hasOpen = list.some((a) => !a.checkOut);
-    return hasOpen ? "here" : "left";
+    start: string, // "YYYY-MM-DD"
+    end: string    // "YYYY-MM-DD"
+  ): Promise<Attendance[]> {
+    try {
+      setLoading(true);
+      setError(null);
+      const rows = await api.get<AttendanceRow[]>(
+        `/attendance?childId=${encodeURIComponent(
+          childId
+        )}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
+      );
+      const mapped = rows.map(mapAttendanceRow);
+      setChildRecords(childId, mapped);
+      return mapped;
+    } catch (err: any) {
+      console.error("Erreur loadRangeForChild:", err);
+      setError(err.message || "Erreur de chargement des présences");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function checkIn(childId: string, date: string) {
-    // Si déjà une présence ouverte pour cet enfant à cette date, on ne recrée pas
-    const existing = getOpenAttendance(childId, date);
-    if (existing) return;
-
-    const newAttendance: Attendance = {
-      id: generateId(),
-      childId,
-      date,
-      checkIn: getCurrentTimeHHMM(),
-      checkOut: null,
-    };
-
-    setAttendances((prev) => [...prev, newAttendance]);
+  // 🔹 Récupérer les présences d'un jour précis depuis le cache
+  function getDayForChild(childId: string, date: string): Attendance[] {
+    return getCachedForChild(childId).filter((r) => r.date === date);
   }
 
-  function checkOut(childId: string, date: string) {
-    const open = getOpenAttendance(childId, date);
-    if (!open) return;
+  // 🔹 Pointage d'arrivée
+  async function checkIn(
+    childId: string,
+    options?: { date?: string; time?: string }
+  ): Promise<Attendance> {
+    const body: any = { childId };
+    if (options?.date) body.date = options.date;
+    if (options?.time) body.time = options.time;
 
-    const time = getCurrentTimeHHMM();
-    setAttendances((prev) =>
-      prev.map((a) =>
-        a.id === open.id
-          ? {
-              ...a,
-              checkOut: time,
-            }
-          : a
-      )
-    );
+    try {
+      setLoading(true);
+      setError(null);
+      const row = await api.post<AttendanceRow>("/attendance/check-in", body);
+      const att = mapAttendanceRow(row);
+
+      // on met à jour le cache pour cet enfant (remplace l'entrée du même id si jamais)
+      const existing = getCachedForChild(childId).filter(
+        (r) => r.id !== att.id
+      );
+      setChildRecords(childId, [...existing, att]);
+
+      return att;
+    } catch (err: any) {
+      console.error("Erreur checkIn:", err);
+      setError(err.message || "Erreur lors du pointage d'arrivée");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
   }
 
-  // Utile plus tard pour les récap, mais déjà prêt
-  function getAttendancesBetween(start: string, end: string) {
-    return sortedAttendances.filter(
-      (a) => a.date >= start && a.date <= end
-    );
+  // 🔹 Pointage de départ
+  async function checkOut(
+    childId: string,
+    options?: { date?: string; time?: string }
+  ): Promise<Attendance> {
+    const body: any = { childId };
+    if (options?.date) body.date = options.date;
+    if (options?.time) body.time = options.time;
+
+    try {
+      setLoading(true);
+      setError(null);
+      const row = await api.post<AttendanceRow>("/attendance/check-out", body);
+      const att = mapAttendanceRow(row);
+
+      const existing = getCachedForChild(childId).filter(
+        (r) => r.id !== att.id
+      );
+      setChildRecords(childId, [...existing, att]);
+
+      return att;
+    } catch (err: any) {
+      console.error("Erreur checkOut:", err);
+      setError(err.message || "Erreur lors du pointage de départ");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // 🔹 Modifier les heures (ou la date) d'une présence
+  async function updateAttendance(
+    id: string,
+    data: {
+      date?: string;
+      checkIn?: string;
+      checkOut?: string | null;
+    }
+  ): Promise<Attendance> {
+    const body: any = {};
+    if (data.date !== undefined) body.date = data.date;
+    if (data.checkIn !== undefined) body.checkIn = data.checkIn;
+    if (data.checkOut !== undefined) body.checkOut = data.checkOut;
+
+    try {
+      setLoading(true);
+      setError(null);
+      const row = await api.patch<AttendanceRow>(`/attendance/${id}`, body);
+      const att = mapAttendanceRow(row);
+
+      const childId = att.childId;
+      const existing = getCachedForChild(childId).filter(
+        (r) => r.id !== att.id
+      );
+      setChildRecords(childId, [...existing, att]);
+
+      return att;
+    } catch (err: any) {
+      console.error("Erreur updateAttendance:", err);
+      setError(err.message || "Erreur lors de la mise à jour des heures");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
   }
 
   return {
-    attendances: sortedAttendances,
-    getAttendancesByDate,
-    getChildAttendancesForDate,
-    getChildStatusForDate,
+    loading,
+    error,
+    recordsByChild,
+    loadRangeForChild,
+    getCachedForChild,
+    getDayForChild,
     checkIn,
     checkOut,
-    getAttendancesBetween,
+    updateAttendance,
   };
 }

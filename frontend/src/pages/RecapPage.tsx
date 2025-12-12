@@ -1,77 +1,130 @@
-// src/pages/RecapPage.tsx
 import { useMemo, useState } from "react";
 import { useChildren } from "../hooks/useChildren";
 import { useAttendance } from "../hooks/useAttendance";
-import RecapTable from "../components/recap/RecapTable";
-import { durationBetween } from "../utils/time";
+import type { Attendance } from "../types";
 
-interface DayRecap {
-  date: string; // YYYY-MM-DD
-  intervals: { checkIn: string; checkOut: string | null }[];
-  totalMinutes: number;
+interface EditTimes {
+  checkIn: string;
+  checkOut: string;
 }
 
-function getTodayDateISO() {
+function getMonthStart(): string {
   const d = new Date();
-  return d.toISOString().slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+    2,
+    "0"
+  )}-01`;
 }
 
-function getFirstDayOfCurrentMonthISO() {
-  const d = new Date();
-  const first = new Date(d.getFullYear(), d.getMonth(), 1);
-  return first.toISOString().slice(0, 10);
+function getToday(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function diffMinutes(start: string, end: string): number {
+  if (!start || !end) return 0;
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  const startMin = sh * 60 + sm;
+  const endMin = eh * 60 + em;
+  const diff = endMin - startMin;
+  return diff > 0 ? diff : 0;
+}
+
+function formatMinutes(total: number): string {
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return `${h}h${String(m).padStart(2, "0")}`;
 }
 
 export default function RecapPage() {
-  const { children } = useChildren();
-  const { getAttendancesBetween } = useAttendance();
+  const { activeChildren } = useChildren();
+  const {
+    loading,
+    error,
+    loadRangeForChild,
+    getCachedForChild,
+    updateAttendance,
+  } = useAttendance();
 
   const [selectedChildId, setSelectedChildId] = useState<string>("");
-  const [startDate, setStartDate] = useState<string>(
-    getFirstDayOfCurrentMonthISO
-  );
-  const [endDate, setEndDate] = useState<string>(getTodayDateISO);
+  const [startDate, setStartDate] = useState<string>(getMonthStart());
+  const [endDate, setEndDate] = useState<string>(getToday());
+  const [editTimes, setEditTimes] = useState<Record<string, EditTimes>>({});
 
   const selectedChild = useMemo(
-    () => children.find((c) => c.id === selectedChildId),
-    [children, selectedChildId]
+    () => activeChildren.find((c) => c.id === selectedChildId),
+    [activeChildren, selectedChildId]
   );
 
-  const { days, totalMinutes } = useMemo(() => {
-    if (!selectedChildId || !startDate || !endDate) {
-      return { days: [] as DayRecap[], totalMinutes: 0 };
-    }
+  const records = useMemo(
+    () =>
+      selectedChildId
+        ? getCachedForChild(selectedChildId).filter(
+            (r) => r.date >= startDate && r.date <= endDate
+          )
+        : [],
+    [selectedChildId, startDate, endDate, getCachedForChild]
+  );
 
-    const all = getAttendancesBetween(startDate, endDate).filter(
-      (a) => a.childId === selectedChildId
-    );
-
-    // Regroupement par date
-    const map = new Map<string, DayRecap>();
-
-    for (const a of all) {
-      if (!map.has(a.date)) {
-        map.set(a.date, {
-          date: a.date,
-          intervals: [],
-          totalMinutes: 0,
-        });
+  const groupedByDate = useMemo(() => {
+    const map = new Map<string, Attendance[]>();
+    for (const r of records) {
+      if (!map.has(r.date)) {
+        map.set(r.date, []);
       }
-      const day = map.get(a.date)!;
-      day.intervals.push({ checkIn: a.checkIn, checkOut: a.checkOut ?? null });
-
-      if (a.checkOut) {
-        day.totalMinutes += durationBetween(a.checkIn, a.checkOut);
-      }
+      map.get(r.date)!.push(r);
     }
-
-    const daysArray = Array.from(map.values()).sort((a, b) =>
-      a.date.localeCompare(b.date)
+    return Array.from(map.entries()).sort(([d1], [d2]) =>
+      d1.localeCompare(d2)
     );
-    const total = daysArray.reduce((sum, d) => sum + d.totalMinutes, 0);
+  }, [records]);
 
-    return { days: daysArray, totalMinutes: total };
-  }, [selectedChildId, startDate, endDate, getAttendancesBetween]);
+  const totalMinutes = useMemo(
+    () =>
+      records.reduce(
+        (sum, r) =>
+          sum + diffMinutes(r.checkIn, r.checkOut ?? ""),
+        0
+      ),
+    [records]
+  );
+
+  const handleLoad = async () => {
+    if (!selectedChildId) return;
+    await loadRangeForChild(selectedChildId, startDate, endDate);
+  };
+
+  const handleEditChange = (
+    att: Attendance,
+    field: keyof EditTimes,
+    value: string
+  ) => {
+    setEditTimes((prev) => {
+      const existing = prev[att.id] ?? {
+        checkIn: att.checkIn,
+        checkOut: att.checkOut ?? "",
+      };
+      return {
+        ...prev,
+        [att.id]: {
+          ...existing,
+          [field]: value,
+        },
+      };
+    });
+  };
+
+  const handleSaveEdit = async (att: Attendance) => {
+    const edit = editTimes[att.id] ?? {
+      checkIn: att.checkIn,
+      checkOut: att.checkOut ?? "",
+    };
+
+    await updateAttendance(att.id, {
+      checkIn: edit.checkIn,
+      checkOut: edit.checkOut ? edit.checkOut : null,
+    });
+  };
 
   return (
     <div className="space-y-4 print:bg-white">
@@ -79,84 +132,194 @@ export default function RecapPage() {
         <h2 className="text-xl font-semibold text-slate-900">
           Récapitulatif des heures
         </h2>
-        <p className="text-sm text-slate-600">
-          Choisis un enfant et une période. Tu pourras ensuite imprimer la
-          page.
+        <p className="text-slate-600 text-sm">
+          Sélectionne un enfant et une période pour obtenir un récapitulatif
+          imprimable.
         </p>
       </div>
 
-      {/* Filtres (cachés à l'impression) */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3 print:hidden">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {/* Enfant */}
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-700">
-              Enfant
-            </label>
-            <select
-              value={selectedChildId}
-              onChange={(e) => setSelectedChildId(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
-            >
-              <option value="">— Sélectionner un enfant —</option>
-              {children.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.firstName}
-                  {c.lastName ? ` ${c.lastName}` : ""}{" "}
-                  {!c.active ? "(archivé)" : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Date début */}
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-700">
-              Date de début
-            </label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
-            />
-          </div>
-
-          {/* Date fin */}
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-700">
-              Date de fin
-            </label>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
-            />
-          </div>
+      <div className="flex flex-wrap items-end gap-3 print:hidden">
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-slate-700">
+            Enfant
+          </label>
+          <select
+            className="border rounded-md px-2 py-1 text-sm min-w-[180px]"
+            value={selectedChildId}
+            onChange={(e) => setSelectedChildId(e.target.value)}
+          >
+            <option value="">Sélectionner…</option>
+            {activeChildren.map((child) => (
+              <option key={child.id} value={child.id}>
+                {child.firstName}
+                {child.lastName ? ` ${child.lastName}` : ""}
+              </option>
+            ))}
+          </select>
         </div>
 
-        <p className="text-[11px] text-slate-500">
-          Astuce : tu peux faire un récap par mois (ex : 01 → fin du mois), ou
-          pour une période de facturation précise.
-        </p>
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-slate-700">
+            Du
+          </label>
+          <input
+            type="date"
+            className="border rounded-md px-2 py-1 text-sm"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-slate-700">
+            Au
+          </label>
+          <input
+            type="date"
+            className="border rounded-md px-2 py-1 text-sm"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+          />
+        </div>
+
+        <button
+          type="button"
+          className="h-9 px-3 rounded-md bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:bg-slate-300"
+          onClick={handleLoad}
+          disabled={!selectedChildId}
+        >
+          Charger le récap
+        </button>
+
+        {loading && (
+          <span className="text-sm text-slate-500">Chargement…</span>
+        )}
+        {error && <span className="text-sm text-red-600">{error}</span>}
       </div>
 
-      {/* Zone imprimable */}
-      {selectedChild ? (
-        <RecapTable
-          childName={`${selectedChild.firstName}${
-            selectedChild.lastName ? " " + selectedChild.lastName : ""
-          }`}
-          periodStart={startDate}
-          periodEnd={endDate}
-          days={days}
-          totalMinutes={totalMinutes}
-        />
-      ) : (
-        <p className="text-sm text-slate-500 print:hidden">
-          Sélectionne un enfant pour afficher le récapitulatif.
-        </p>
+      {selectedChild && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between print:flex-col print:items-start print:gap-1">
+            <div>
+              <p className="font-semibold text-slate-900">
+                {selectedChild.firstName}
+                {selectedChild.lastName ? ` ${selectedChild.lastName}` : ""}
+              </p>
+              <p className="text-slate-600 text-xs">
+                Période du {startDate} au {endDate}
+              </p>
+            </div>
+            <div className="flex items-center gap-3 print:hidden">
+              <p className="text-sm font-medium text-slate-800">
+                Total : {formatMinutes(totalMinutes)}
+              </p>
+              <button
+                type="button"
+                className="px-3 py-1 rounded-md border border-slate-300 text-slate-700 text-xs font-medium hover:bg-slate-100"
+                onClick={() => window.print()}
+              >
+                Imprimer
+              </button>
+            </div>
+          </div>
+
+          {groupedByDate.length === 0 && (
+            <p className="text-sm text-slate-500">
+              Aucun pointage trouvé pour cette période.
+            </p>
+          )}
+
+          {groupedByDate.length > 0 && (
+            <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+              <table className="min-w-full text-xs">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-semibold text-slate-700">
+                      Date
+                    </th>
+                    <th className="px-3 py-2 text-left font-semibold text-slate-700">
+                      Arrivée
+                    </th>
+                    <th className="px-3 py-2 text-left font-semibold text-slate-700">
+                      Départ
+                    </th>
+                    <th className="px-3 py-2 text-left font-semibold text-slate-700">
+                      Durée
+                    </th>
+                    <th className="px-3 py-2 text-left font-semibold text-slate-700 print:hidden">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {groupedByDate.map(([date, list]) => {
+                    // on suppose 1 enregistrement par jour pour simplifier
+                    const att = list[0];
+                    const edit = editTimes[att.id] ?? {
+                      checkIn: att.checkIn,
+                      checkOut: att.checkOut ?? "",
+                    };
+                    const minutes = diffMinutes(
+                      att.checkIn,
+                      att.checkOut ?? ""
+                    );
+
+                    return (
+                      <tr
+                        key={att.id}
+                        className="border-t border-slate-100 hover:bg-slate-50/50"
+                      >
+                        <td className="px-3 py-2">{date}</td>
+                        <td className="px-3 py-2">
+                          <input
+                            type="time"
+                            className="border rounded-md px-2 py-1 text-xs"
+                            value={edit.checkIn}
+                            onChange={(e) =>
+                              handleEditChange(att, "checkIn", e.target.value)
+                            }
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            type="time"
+                            className="border rounded-md px-2 py-1 text-xs"
+                            value={edit.checkOut}
+                            onChange={(e) =>
+                              handleEditChange(att, "checkOut", e.target.value)
+                            }
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          {minutes > 0 ? formatMinutes(minutes) : "-"}
+                        </td>
+                        <td className="px-3 py-2 print:hidden">
+                          <button
+                            type="button"
+                            className="px-2 py-1 rounded-md border border-slate-300 text-slate-700 text-xs font-medium hover:bg-slate-100"
+                            onClick={() => handleSaveEdit(att)}
+                          >
+                            Enregistrer
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+
+                  <tr className="border-t border-slate-200 bg-slate-50">
+                    <td className="px-3 py-2 font-semibold">Total</td>
+                    <td />
+                    <td />
+                    <td className="px-3 py-2 font-semibold">
+                      {formatMinutes(totalMinutes)}
+                    </td>
+                    <td />
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
