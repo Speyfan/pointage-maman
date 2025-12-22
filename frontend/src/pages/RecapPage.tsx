@@ -8,6 +8,8 @@ interface EditTimes {
   checkOut: string;
 }
 
+type SaveStatus = "idle" | "success" | "error";
+
 function getMonthStart(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
@@ -50,6 +52,7 @@ export default function RecapPage() {
   const [startDate, setStartDate] = useState<string>(getMonthStart());
   const [endDate, setEndDate] = useState<string>(getToday());
   const [editTimes, setEditTimes] = useState<Record<string, EditTimes>>({});
+  const [saveStatus, setSaveStatus] = useState<Record<string, SaveStatus>>({});
 
   const selectedChild = useMemo(
     () => activeChildren.find((c) => c.id === selectedChildId),
@@ -90,11 +93,7 @@ export default function RecapPage() {
 
   const handleLoad = async () => {
     if (!selectedChildId) return;
-    try {
-      await loadRangeForChild(selectedChildId, startDate, endDate);
-    } catch (err) {
-      console.error("Erreur lors du chargement du récap :", err);
-    }
+    await loadRangeForChild(selectedChildId, startDate, endDate);
   };
 
   const handleEditChange = (
@@ -124,12 +123,23 @@ export default function RecapPage() {
     };
 
     try {
+      setSaveStatus((prev) => ({ ...prev, [att.id]: "idle" }));
       await updateAttendance(att.id, {
         checkIn: edit.checkIn,
         checkOut: edit.checkOut ? edit.checkOut : null,
       });
+      setSaveStatus((prev) => ({ ...prev, [att.id]: "success" }));
+
+      setTimeout(() => {
+        setSaveStatus((prev) => {
+          const copy = { ...prev };
+          delete copy[att.id];
+          return copy;
+        });
+      }, 2000);
     } catch (err) {
-      console.error("Erreur lors de la sauvegarde des heures (RecapPage):", err);
+      console.error("Erreur updateAttendance (RecapPage):", err);
+      setSaveStatus((prev) => ({ ...prev, [att.id]: "error" }));
     }
   };
 
@@ -270,6 +280,7 @@ export default function RecapPage() {
                       att.checkIn,
                       att.checkOut ?? ""
                     );
+                    const status = saveStatus[att.id] ?? "idle";
 
                     return (
                       <tr
@@ -301,13 +312,25 @@ export default function RecapPage() {
                           {minutes > 0 ? formatMinutes(minutes) : "-"}
                         </td>
                         <td className="px-3 py-2 print:hidden">
-                          <button
-                            type="button"
-                            className="px-2 py-1 rounded-md border border-slate-300 text-slate-700 text-xs font-medium hover:bg-slate-100"
-                            onClick={() => handleSaveEdit(att)}
-                          >
-                            Enregistrer
-                          </button>
+                          <div className="flex flex-col gap-1">
+                            <button
+                              type="button"
+                              className="px-2 py-1 rounded-md border border-slate-300 text-slate-700 text-xs font-medium hover:bg-slate-100"
+                              onClick={() => handleSaveEdit(att)}
+                            >
+                              Enregistrer
+                            </button>
+                            {status === "success" && (
+                              <span className="text-[11px] text-emerald-600">
+                                Enregistré ✔
+                              </span>
+                            )}
+                            {status === "error" && (
+                              <span className="text-[11px] text-red-600">
+                                Erreur
+                              </span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );

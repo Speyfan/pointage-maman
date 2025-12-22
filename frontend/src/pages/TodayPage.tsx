@@ -12,6 +12,8 @@ interface EditTimes {
   checkOut: string;
 }
 
+type SaveStatus = "idle" | "success" | "error";
+
 export default function TodayPage() {
   const { activeChildren } = useChildren();
   const {
@@ -26,6 +28,7 @@ export default function TodayPage() {
 
   const [date, setDate] = useState<string>(getToday());
   const [editTimes, setEditTimes] = useState<Record<string, EditTimes>>({}); // clé = attendance.id
+  const [saveStatus, setSaveStatus] = useState<Record<string, SaveStatus>>({});
 
   // Charger les présences du jour pour tous les enfants actifs
   useEffect(() => {
@@ -42,23 +45,11 @@ export default function TodayPage() {
   );
 
   const handleCheckIn = async (childId: string) => {
-    try {
-      await checkIn(childId, { date });
-      // 🔁 On recharge la journée pour cet enfant
-      await loadRangeForChild(childId, date, date);
-    } catch (err) {
-      console.error("Erreur lors du check-in (TodayPage):", err);
-    }
+    await checkIn(childId, { date });
   };
 
   const handleCheckOut = async (childId: string) => {
-    try {
-      await checkOut(childId, { date });
-      // 🔁 On recharge la journée pour cet enfant
-      await loadRangeForChild(childId, date, date);
-    } catch (err) {
-      console.error("Erreur lors du check-out (TodayPage):", err);
-    }
+    await checkOut(childId, { date });
   };
 
   const handleEditChange = (
@@ -88,14 +79,24 @@ export default function TodayPage() {
     };
 
     try {
+      setSaveStatus((prev) => ({ ...prev, [attendance.id]: "idle" }));
       await updateAttendance(attendance.id, {
         checkIn: edit.checkIn,
         checkOut: edit.checkOut ? edit.checkOut : null,
       });
-      // Optionnel : recharger cette journée
-      await loadRangeForChild(attendance.childId, attendance.date, attendance.date);
+      setSaveStatus((prev) => ({ ...prev, [attendance.id]: "success" }));
+
+      // On efface le message après 2 secondes
+      setTimeout(() => {
+        setSaveStatus((prev) => {
+          const copy = { ...prev };
+          delete copy[attendance.id];
+          return copy;
+        });
+      }, 2000);
     } catch (err) {
       console.error("Erreur lors de la sauvegarde des heures (TodayPage):", err);
+      setSaveStatus((prev) => ({ ...prev, [attendance.id]: "error" }));
     }
   };
 
@@ -163,6 +164,11 @@ export default function TodayPage() {
                     }
                   : { checkIn: "", checkOut: "" };
 
+                const status =
+                  attendance && saveStatus[attendance.id]
+                    ? saveStatus[attendance.id]
+                    : "idle";
+
                 return (
                   <tr
                     key={child.id}
@@ -218,32 +224,45 @@ export default function TodayPage() {
                     </td>
 
                     <td className="px-3 py-2">
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          className="px-2 py-1 rounded-md bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 disabled:bg-emerald-300"
-                          onClick={() => handleCheckIn(child.id)}
-                        >
-                          Arrivé
-                        </button>
-                        <button
-                          type="button"
-                          className="px-2 py-1 rounded-md bg-amber-600 text-white text-xs font-medium hover:bg-amber-700 disabled:bg-amber-300"
-                          onClick={() => handleCheckOut(child.id)}
-                          disabled={!attendance}
-                        >
-                          Parti
-                        </button>
-                        <button
-                          type="button"
-                          className="px-2 py-1 rounded-md border border-slate-300 text-slate-700 text-xs font-medium hover:bg-slate-100 disabled:text-slate-300 disabled:border-slate-200"
-                          onClick={() =>
-                            attendance && handleSaveEdit(attendance)
-                          }
-                          disabled={!attendance}
-                        >
-                          Enregistrer les heures
-                        </button>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            className="px-2 py-1 rounded-md bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 disabled:bg-emerald-300"
+                            onClick={() => handleCheckIn(child.id)}
+                          >
+                            Arrivé
+                          </button>
+                          <button
+                            type="button"
+                            className="px-2 py-1 rounded-md bg-amber-600 text-white text-xs font-medium hover:bg-amber-700 disabled:bg-amber-300"
+                            onClick={() => handleCheckOut(child.id)}
+                            disabled={!attendance}
+                          >
+                            Parti
+                          </button>
+                          <button
+                            type="button"
+                            className="px-2 py-1 rounded-md border border-slate-300 text-slate-700 text-xs font-medium hover:bg-slate-100 disabled:text-slate-300 disabled:border-slate-200"
+                            onClick={() =>
+                              attendance && handleSaveEdit(attendance)
+                            }
+                            disabled={!attendance}
+                          >
+                            Enregistrer les heures
+                          </button>
+                        </div>
+
+                        {attendance && status === "success" && (
+                          <span className="text-[11px] text-emerald-600">
+                            Enregistré ✔
+                          </span>
+                        )}
+                        {attendance && status === "error" && (
+                          <span className="text-[11px] text-red-600">
+                            Erreur lors de l&apos;enregistrement
+                          </span>
+                        )}
                       </div>
                     </td>
                   </tr>
