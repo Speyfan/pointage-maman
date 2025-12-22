@@ -19,37 +19,45 @@ export default function App() {
             <Link to="/recap" className="text-slate-700 hover:text-slate-900">
               Récap
             </Link>
-            <Link to="/children" className="text-slate-700 hover:text-slate-900">
+            <Link
+              to="/children"
+              className="text-slate-700 hover:text-slate-900"
+            >
               Enfants
             </Link>
+            {/* lien caché ou non vers la zone cadeau, comme tu veux */}
+            {/* <Link to="/cadeau" className="text-pink-700 hover:text-pink-900">
+              🎁 Cadeau
+            </Link> */}
           </nav>
         </div>
       </header>
 
       <main className="max-w-5xl mx-auto px-4 py-6">
         <Routes>
-          {/* Redirection par défaut vers today */}
+          {/* page par défaut */}
           <Route path="/" element={<Navigate to="/today" replace />} />
 
-          {/* Pages principales */}
+          {/* 👇 double route pour être sûr de matcher avec ou sans slash */}
+          <Route path="/cadeau" element={<Cadeau />} />
+          <Route path="/cadeau/" element={<Cadeau />} />
+
+          {/* pages principales */}
           <Route path="/today" element={<TodayPage />} />
           <Route path="/recap" element={<RecapPage />} />
           <Route path="/children" element={<ChildrenPage />} />
 
-          {/* Page “cadeau” d’entrée (écran ultra kitsch) */}
-          <Route path="/cadeau" element={<Cadeau />} />
-
-          {/* Routes cadeau finales */}
+          {/* routes cadeau finales */}
           <Route
-            path="/cadeau/parent"
+            path="/parent"
             element={<GiftPage recipient="parent" />}
           />
           <Route
-            path="/cadeau/margaux"
+            path="/margaux"
             element={<GiftPage recipient="margaux" />}
           />
 
-          {/* fallback : toute URL inconnue renvoie vers /today */}
+          {/* fallback */}
           <Route path="*" element={<Navigate to="/today" replace />} />
         </Routes>
       </main>
