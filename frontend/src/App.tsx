@@ -1,5 +1,4 @@
 import {
-  BrowserRouter,
   Routes,
   Route,
   Navigate,
@@ -75,8 +74,6 @@ function Layout() {
 
 export default function App() {
   return (
-    <BrowserRouter>
       <Layout />
-    </BrowserRouter>
   );
 }
