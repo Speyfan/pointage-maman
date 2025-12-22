@@ -154,14 +154,14 @@ export default function GiftPage({ recipient }: GiftPageProps) {
                   <img
                     src={cadeauParents}
                     alt="Votre super cadeau surprise"
-                    className="mx-auto mt-4 mb-2 w-3 h-auto rounded-2xl shadow-xl"
+                    className="mx-auto mt-4 mb-2 w-100 h-auto rounded-2xl shadow-xl"
                   />
                 </p>}
                 {recipient !== "parent" && <p>
                   <img
                     src={cadeauMargaux}
                     alt="Votre super cadeau surprise"
-                    className="mx-auto mt-4 mb-2 w-52 h-auto rounded-2xl shadow-xl"
+                    className="mx-auto mt-4 mb-2 w-100 h-auto rounded-2xl shadow-xl"
                   />
                 </p>}
 
