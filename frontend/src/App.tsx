@@ -9,12 +9,13 @@ import RecapPage from "./pages/RecapPage";
 import ChildrenPage from "./pages/ChildrenPage";
 import GiftPage from "./pages/GiftPage";
 import Cadeau from "./pages/Cadeau";
+import Cadeau2 from "./pages/Cadeau2";
 
 function Layout() {
   const location = useLocation();
 
   // On cache le header sur toutes les pages de cadeau
-  const hideHeader = ["/cadeau", "/margaux", "/parent"].includes(location.pathname);
+  const hideHeader = ["/cadeau2", "/cadeau", "/margaux", "/parent"].includes(location.pathname);
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
@@ -50,6 +51,7 @@ function Layout() {
         <Routes>
           <Route path="/" element={<Navigate to="/today" replace />} />
           <Route path="/cadeau" element={<Cadeau />} />
+          <Route path="/cadeau2" element={<Cadeau2 />} />
           <Route path="/today" element={<TodayPage />} />
           <Route path="/recap" element={<RecapPage />} />
           <Route path="/children" element={<ChildrenPage />} />
